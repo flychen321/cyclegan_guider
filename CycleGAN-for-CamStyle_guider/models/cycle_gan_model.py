@@ -3,6 +3,8 @@ import itertools
 from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
+import id_loss
+import os
 
 
 class CycleGANModel(BaseModel):
@@ -24,7 +26,8 @@ class CycleGANModel(BaseModel):
         BaseModel.initialize(self, opt)
 
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
-        self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B']
+        # self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B']
+        self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'id_cycle_A', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'id_cycle_B']
         # specify the images you want to save/display. The program will call base_model.get_current_visuals
         visual_names_A = ['real_A', 'fake_B', 'rec_A']
         visual_names_B = ['real_B', 'fake_A', 'rec_B']
@@ -36,6 +39,7 @@ class CycleGANModel(BaseModel):
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
         if self.isTrain:
             self.model_names = ['G_A', 'G_B', 'D_A', 'D_B']
+            self.id_loss = id_loss.id_loss
         else:  # during test time, only load Gs
             self.model_names = ['G_A', 'G_B']
 
@@ -43,9 +47,11 @@ class CycleGANModel(BaseModel):
         # The naming conversion is different from those used in the paper
         # Code (paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
         self.netG_A = networks.define_G(opt.input_nc, opt.output_nc,
-                                        opt.ngf, opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
+                                        opt.ngf, opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type,
+                                        self.gpu_ids)
         self.netG_B = networks.define_G(opt.output_nc, opt.input_nc,
-                                        opt.ngf, opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
+                                        opt.ngf, opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type,
+                                        self.gpu_ids)
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
@@ -77,6 +83,9 @@ class CycleGANModel(BaseModel):
         self.real_A = input['A' if AtoB else 'B'].to(self.device)
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
+        self.image_paths_B = input['B_paths' if AtoB else 'A_paths']
+        # print('image_paths = %s' % self.image_paths)
+        # print('image_paths_B = %s' % self.image_paths_B)
 
     def forward(self):
         self.fake_B = self.netG_A(self.real_A)
@@ -130,8 +139,31 @@ class CycleGANModel(BaseModel):
         self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A
         # Backward cycle loss
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
+
+        lambda_id = 0.2
+        self.loss_id_cycle_A = lambda_id * self.id_loss(img=self.rec_A,
+                                      label=id_loss.dict_label[os.path.split(self.image_paths[0])[-1][:4]])
+        self.loss_id_cycle_B = lambda_id * self.id_loss(img=self.rec_B,
+                                      label=id_loss.dict_label[os.path.split(self.image_paths_B[0])[-1][:4]])
+
+        # print('loss_id_A = %s   loss_id_B = %s   loss_G_A = %s    loss_G_B = %s '
+        #     % (self.loss_id_A, self.loss_id_B, self.loss_G_A, self.loss_G_B))
+        # print('loss_cycle_A = %s  loss_cycle_B = %s   loss_idt_A = %s   loss_idt_B = %s'
+        #     % (self.loss_cycle_A, self.loss_cycle_B, self.loss_idt_A, self.loss_idt_B))
+
         # combined loss
-        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
+        self.loss_G = self.loss_id_cycle_A + self.loss_id_cycle_B \
+                      + self.loss_G_A + self.loss_G_B \
+                      + self.loss_cycle_A + self.loss_cycle_B \
+                      + self.loss_idt_A + self.loss_idt_B
+
+        # self.loss_G = (self.loss_id_cycle_A + self.loss_id_cycle_B) \
+        #               + self.loss_G_A + self.loss_G_B \
+        #               + self.loss_idt_A + self.loss_idt_B
+
+        #original loss
+        # self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
+
         self.loss_G.backward()
 
     def optimize_parameters(self):
@@ -148,5 +180,3 @@ class CycleGANModel(BaseModel):
         self.backward_D_A()
         self.backward_D_B()
         self.optimizer_D.step()
-
-

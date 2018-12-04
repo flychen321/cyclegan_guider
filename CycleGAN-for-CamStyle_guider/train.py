@@ -1,3 +1,7 @@
+import sys
+sys.path.append('./models')
+import id_model
+import id_loss
 import time
 from options.train_options import TrainOptions
 from data import CreateDataLoader

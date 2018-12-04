@@ -8,3 +8,5 @@
 *.jpeg
 *.pth
 *checkpoint*
+*data/*
+*.xml
