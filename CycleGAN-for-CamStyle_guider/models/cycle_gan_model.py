@@ -140,7 +140,7 @@ class CycleGANModel(BaseModel):
         # Backward cycle loss
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
 
-        lambda_id = 0.2
+        lambda_id = 0.1
         self.loss_id_cycle_A = lambda_id * self.id_loss(img=self.rec_A,
                                       label=id_loss.dict_label[os.path.split(self.image_paths[0])[-1][:4]])
         self.loss_id_cycle_B = lambda_id * self.id_loss(img=self.rec_B,

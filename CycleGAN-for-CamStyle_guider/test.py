@@ -1,3 +1,5 @@
+import sys
+sys.path.append('./models')
 import os
 from options.test_options import TestOptions
 from data import CreateDataLoader

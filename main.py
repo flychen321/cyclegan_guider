@@ -79,7 +79,6 @@ def main(args):
     # Redirect print to both console and log file
     if not args.evaluate:
         sys.stdout = Logger(osp.join(args.logs_dir, 'log.txt'))
-
     # Create data loaders
     dataset, num_classes, train_loader, query_loader, gallery_loader, camstyle_loader = \
         get_data(args.dataset, args.data_dir, args.height,
