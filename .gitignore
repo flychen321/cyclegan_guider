@@ -2,7 +2,7 @@
 *.jpg
 *.png
 *.mat
-*log*
+*log.*
 *.html
 *.pyc
 *.jpeg
